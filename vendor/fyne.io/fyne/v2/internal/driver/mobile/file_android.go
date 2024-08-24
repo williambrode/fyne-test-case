@@ -1,5 +1,4 @@
 //go:build android
-// +build android
 
 package mobile
 
@@ -9,6 +8,7 @@ package mobile
 #include <stdlib.h>
 #include <stdbool.h>
 
+bool deleteURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 bool existsURI(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 void* openStream(uintptr_t jni_env, uintptr_t ctx, char* uriCstr);
 char* readStream(uintptr_t jni_env, uintptr_t ctx, void* stream, int len, int* total);
@@ -142,6 +142,22 @@ func (s *javaStream) Write(p []byte) (int, error) {
 	return len(p), err
 }
 
+func deleteURI(u fyne.URI) error {
+	uriStr := C.CString(u.String())
+	defer C.free(unsafe.Pointer(uriStr))
+
+	ok := false
+	app.RunOnJVM(func(_, env, ctx uintptr) error {
+		ok = bool(C.deleteURI(C.uintptr_t(env), C.uintptr_t(ctx), uriStr))
+		return nil
+	})
+
+	if !ok {
+		return errors.New("failed to delete file " + u.String())
+	}
+	return nil
+}
+
 func existsURI(uri fyne.URI) (bool, error) {
 	uriStr := C.CString(uri.String())
 	defer C.free(unsafe.Pointer(uriStr))
@@ -155,7 +171,7 @@ func existsURI(uri fyne.URI) (bool, error) {
 	return ok, nil
 }
 
-func registerRepository(d *mobileDriver) {
+func registerRepository(d *driver) {
 	repo := &mobileFileRepo{}
 	repository.Register("file", repo)
 	repository.Register("content", repo)

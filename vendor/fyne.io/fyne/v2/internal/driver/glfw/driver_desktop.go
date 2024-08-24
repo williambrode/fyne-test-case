@@ -1,5 +1,4 @@
-//go:build !js && !wasm && !test_web_driver
-// +build !js,!wasm,!test_web_driver
+//go:build !wasm && !test_web_driver
 
 package glfw
 
@@ -15,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/internal/painter"
 	"fyne.io/fyne/v2/internal/svg"
+	"fyne.io/fyne/v2/lang"
 	"fyne.io/systray"
 
 	"fyne.io/fyne/v2"
@@ -86,15 +86,15 @@ func itemForMenuItem(i *fyne.MenuItem, parent *systray.MenuItem) *systray.MenuIt
 	var item *systray.MenuItem
 	if i.Checked {
 		if parent != nil {
-			item = parent.AddSubMenuItemCheckbox(i.Label, i.Label, true)
+			item = parent.AddSubMenuItemCheckbox(i.Label, "", true)
 		} else {
-			item = systray.AddMenuItemCheckbox(i.Label, i.Label, true)
+			item = systray.AddMenuItemCheckbox(i.Label, "", true)
 		}
 	} else {
 		if parent != nil {
-			item = parent.AddSubMenuItem(i.Label, i.Label)
+			item = parent.AddSubMenuItem(i.Label, "")
 		} else {
-			item = systray.AddMenuItem(i.Label, i.Label)
+			item = systray.AddMenuItem(i.Label, "")
 		}
 	}
 	if i.Disabled {
@@ -121,13 +121,20 @@ func itemForMenuItem(i *fyne.MenuItem, parent *systray.MenuItem) *systray.MenuIt
 		if err != nil {
 			fyne.LogError("Failed to convert systray icon", err)
 		} else {
-			item.SetIcon(img)
+			if _, ok := i.Icon.(*theme.ThemedResource); ok {
+				item.SetTemplateIcon(img, img)
+			} else {
+				item.SetIcon(img)
+			}
 		}
 	}
 	return item
 }
 
 func (d *gLDriver) refreshSystray(m *fyne.Menu) {
+	d.systrayLock.Lock()
+	defer d.systrayLock.Unlock()
+
 	d.systrayMenu = m
 	systray.ResetMenu()
 	d.refreshSystrayMenu(m, nil)
@@ -165,7 +172,11 @@ func (d *gLDriver) SetSystemTrayIcon(resource fyne.Resource) {
 		return
 	}
 
-	systray.SetIcon(img)
+	if _, ok := resource.(*theme.ThemedResource); ok {
+		systray.SetTemplateIcon(img, img)
+	} else {
+		systray.SetIcon(img)
+	}
 }
 
 func (d *gLDriver) SystemTrayMenu() *fyne.Menu {
@@ -185,15 +196,16 @@ func (d *gLDriver) catchTerm() {
 }
 
 func addMissingQuitForMenu(menu *fyne.Menu, d *gLDriver) {
+	localQuit := lang.L("Quit")
 	var lastItem *fyne.MenuItem
 	if len(menu.Items) > 0 {
 		lastItem = menu.Items[len(menu.Items)-1]
-		if lastItem.Label == "Quit" {
+		if lastItem.Label == localQuit {
 			lastItem.IsQuit = true
 		}
 	}
 	if lastItem == nil || !lastItem.IsQuit { // make sure the menu always has a quit option
-		quitItem := fyne.NewMenuItem("Quit", nil)
+		quitItem := fyne.NewMenuItem(localQuit, nil)
 		quitItem.IsQuit = true
 		menu.Items = append(menu.Items, fyne.NewMenuItemSeparator(), quitItem)
 	}
