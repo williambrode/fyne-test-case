@@ -16,8 +16,8 @@ func main() {
 
 	win := fyneApp.NewWindow("TestWindow")
 	win.Resize(fyne.NewSize(500, 500))
-	ids := map[string][]string{"": {"1"}}
-	values := map[string]string{"1": "1"}
+	ids := map[string][]string{"": {"1", "x"}, "x": {"y"}, "y": {"z"}}
+	values := map[string]string{"1": "1", "x": "x", "y": "y", "z": "z"}
 	treeBinding := binding.NewStringTree()
 	treeBinding.Set(ids, values)
 	nextValue := 2
@@ -58,14 +58,20 @@ func main() {
 		values[newValue] = newValue
 		treeBinding.Set(ids, values)
 	})
+	var appTabs *container.AppTabs
+	var testTab *container.TabItem
 	reproButton := widget.NewButton("Repro", func() {
-		ids[""] = append(ids[""], "a")
+		ids[""] = []string{"1", "a", "x"}
 		ids["a"] = append(ids["a"], "b")
 		ids["b"] = append(ids["b"], "c")
 		values["a"] = "a"
 		values["b"] = "b"
 		values["c"] = "c"
 		treeBinding.Set(ids, values)
+		tree.OpenBranch("a")
+		tree.OpenBranch("b")
+		tree.Select("c")
+		appTabs.Select(testTab)
 	})
 	upButton := widget.NewButton("Up", func() {
 		val, _ := treeNode.Get()
@@ -80,8 +86,12 @@ func main() {
 	selectButton := widget.NewButton("Select", func() {
 		tree.Select("c")
 	})
+	testTab = container.NewTabItem("test",
+		container.NewBorder(container.NewHBox(treeNodeLabel, selectButton, addButton, upButton, downButton), nil, nil, nil, tree))
+	appTabs = container.NewAppTabs(container.NewTabItem("repro", reproButton), testTab)
+
 	win.SetContent(
-		container.NewBorder(container.NewHBox(treeNodeLabel, reproButton, selectButton, addButton, upButton, downButton), nil, nil, nil, tree),
+		appTabs,
 	)
 	win.Show()
 	fyneApp.Run()

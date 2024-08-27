@@ -51,6 +51,7 @@ type Tree struct {
 	offset        fyne.Position
 	open          map[TreeNodeID]bool
 	scroller      *widget.Scroll
+	content       *treeContent
 	selected      []TreeNodeID
 }
 
@@ -64,6 +65,7 @@ type Tree struct {
 func NewTree(childUIDs func(TreeNodeID) []TreeNodeID, isBranch func(TreeNodeID) bool, create func(bool) fyne.CanvasObject, update func(TreeNodeID, bool, fyne.CanvasObject)) *Tree {
 	t := &Tree{ChildUIDs: childUIDs, IsBranch: isBranch, CreateNode: create, UpdateNode: update}
 	t.ExtendBaseWidget(t)
+	t.initContentAndScroll()
 	return t
 }
 
@@ -86,7 +88,6 @@ func NewTreeWithData(data binding.DataTree, createItem func(bool) fyne.CanvasObj
 			}
 			updateItem(item, branch, o)
 		})
-
 	data.AddListener(binding.NewDataListener(t.Refresh))
 	return t
 }
@@ -113,6 +114,7 @@ func NewTreeWithStrings(data map[string][]string) (t *Tree) {
 		},
 	}
 	t.ExtendBaseWidget(t)
+	t.initContentAndScroll()
 	return
 }
 
@@ -138,17 +140,12 @@ func (t *Tree) CloseBranch(uid TreeNodeID) {
 
 // CreateRenderer is a private method to Fyne which links this widget to its renderer.
 func (t *Tree) CreateRenderer() fyne.WidgetRenderer {
-	t.ExtendBaseWidget(t)
-	c := newTreeContent(t)
-	s := widget.NewScroll(c)
-	t.scroller = s
 	r := &treeRenderer{
-		BaseRenderer: widget.NewBaseRenderer([]fyne.CanvasObject{s}),
+		BaseRenderer: widget.NewBaseRenderer([]fyne.CanvasObject{t.scroller}),
 		tree:         t,
-		content:      c,
-		scroller:     s,
+		content:      t.content,
+		scroller:     t.scroller,
 	}
-	s.OnScrolled = t.offsetUpdated
 	r.updateMinSizes()
 	r.content.viewport = r.MinSize()
 	return r
@@ -192,7 +189,6 @@ func (t *Tree) FocusLost() {
 
 // MinSize returns the size that this widget should not shrink below.
 func (t *Tree) MinSize() fyne.Size {
-	t.ExtendBaseWidget(t)
 	return t.BaseWidget.MinSize()
 }
 
@@ -310,6 +306,7 @@ func (t *Tree) Select(uid TreeNodeID) {
 		}
 	}
 	t.selected = []TreeNodeID{uid}
+	t.currentFocus = uid
 	t.ScrollTo(uid)
 	if f := t.OnSelected; f != nil {
 		f(uid)
@@ -429,6 +426,12 @@ func (t *Tree) UnselectAll() {
 			f(uid)
 		}
 	}
+}
+
+func (t *Tree) initContentAndScroll() {
+	t.content = newTreeContent(t)
+	t.scroller = widget.NewScroll(t.content)
+	t.scroller.OnScrolled = t.offsetUpdated
 }
 
 func (t *Tree) ensureOpenMap() {
